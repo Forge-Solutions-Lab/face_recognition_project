@@ -1,17 +1,2 @@
-# Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
-*$py.class
-
-# Models and Collected Face Datasets
-data/model.npz
-data/faces/*
-!data/faces/.gitkeep
-
-# Environments and OS Metadata
-.venv/
-venv/
-env/
 .DS_Store
-.idea/
-.vscode/

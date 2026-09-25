@@ -1,69 +1,30 @@
-"""Phase 2: Model Training and Serialization CLI.
-
-Scans the face dataset directory, constructs feature matrices and ground-truth labels,
-and persists the trained KNN model to a compressed NumPy archive.
-"""
-
-from __future__ import annotations
-
-import os
 import sys
-import time
-
 import numpy as np
-
-from config import DATA_DIR, IMG_SHAPE, MODEL_PATH
-from src.model import save_model, train_model
-
-
-# ── Training Execution ───────────────────────────────────────────────────────
-def run_training() -> None:
-    """Execute the full dataset loading, matrix compilation, and model export pipeline."""
-    print("=" * 60)
-    print("🧠 กำลังเริ่มกระบวนการเทรนโมเดล KNN (Face Recognition Training)")
-    print("=" * 60)
-    print(f"📂 ไดเรกทอรีข้อมูล: {DATA_DIR}")
-    print(f"📐 ขนาดภาพมาตรฐาน: {IMG_SHAPE[0]}x{IMG_SHAPE[1]} pixels (Grayscale)")
-
-    if not os.path.exists(DATA_DIR):
-        print(f"❌ ไม่พบโฟลเดอร์ {DATA_DIR} กรุณารัน collect.py ก่อน")
-        sys.exit(1)
-
-    start_time = time.time()
-
-    try:
-        X, Y, labels = train_model(data_dir=DATA_DIR, target_size=IMG_SHAPE)
-    except Exception as err:
-        print(f"❌ เกิดข้อผิดพลาดในการโหลดข้อมูล: {err}")
-        sys.exit(1)
-
-    elapsed = time.time() - start_time
-
-    # Display dataset statistics
-    print("-" * 60)
-    print(f"📊 สรุปสถิติข้อมูลที่โหลดได้:")
-    print(f"   - จำนวนรูปทั้งหมด (Total Samples): {X.shape[0]} รูป")
-    print(f"   - มิติของ Feature Vector (Dimensions): {X.shape[1]} features")
-    print(f"   - จำนวนคลาส (Total Classes): {len(labels)} คน")
-    print("-" * 60)
-    print("👥 รายละเอียดแต่ละคลาส:")
-    for label in labels:
-        count = int(np.sum(Y == label))
-        print(f"   • {label}: {count} รูป")
-    print("-" * 60)
-
-    # Save model
-    save_model(X, Y, labels, path=MODEL_PATH)
-    print(f"💾 บันทึกโมเดลเรียบร้อยที่: {MODEL_PATH}")
-    print(f"⏱️ ใช้เวลาเทรนทั้งหมด: {elapsed:.3f} วินาที")
-    print("=" * 60)
-    print("🎉 พร้อมสำหรับการรัน Real-time Prediction (python predict.py) แล้ว!")
-
-
-# ── Main Entrypoint ──────────────────────────────────────────────────────────
-def main() -> None:
-    run_training()
-
-
+from config import K_NEIGHBORS, TEST_RATIO, MODEL_PATH
+from members import find_member
+from src.dataset import load_dataset
+from src.model import save_model, split_data
+from src.evaluate import predict_batch, accuracy, k_distances
+def print_summary(X, y):
+    print(f"รูปทั้งหมด: {X.shape[0]} | Features: {X.shape[1]} | คน: {len(set(y))}")
+    for label, count in zip(*np.unique(y, return_counts=True)):
+        m = find_member(label)
+        print(f"  {label} {m['name'] if m else '?'}: {count} รูป")
+def evaluate_model(X, y):
+    X_tr, y_tr, X_te, y_te = split_data(X, y, TEST_RATIO)
+    return predict_batch(X_tr, y_tr, X_te, min(K_NEIGHBORS, len(X_tr))), y_te
+def print_evaluation(results, y_te):
+    if not results:
+        return print("รูปน้อยเกินไป วัด accuracy ไม่ได้")
+    print(f"Accuracy: {accuracy(results, y_te) * 100:.1f}% (ทดสอบ {len(y_te)} รูป)")
+    print(f"แนะนำ DIST_THRESH ≈ {k_distances(results).max():.2f}")
+def main():
+    X, y = load_dataset()
+    if len(X) == 0:
+        sys.exit("ไม่พบรูป กรุณารัน collect.py ก่อน")
+    print_summary(X, y)
+    print_evaluation(*evaluate_model(X, y))
+    save_model(X, y)
+    print(f"บันทึกโมเดลที่ {MODEL_PATH}")
 if __name__ == "__main__":
     main()
