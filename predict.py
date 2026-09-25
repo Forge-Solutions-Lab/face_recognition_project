@@ -18,7 +18,9 @@ def is_match(conf, dist):
     return conf >= CONFIDENCE_THRESH and dist <= DIST_THRESH
 def member_text(label, matched, field):
     m = find_member(label)
-    return "Unknown" if not matched else f"{label} {m[field]}" if m else str(label)
+    if not matched:
+        return "Unknown"
+    return f"{label} {m[field]}" if m else str(label)
 def draw_result(frame, box, text, conf, dist, color):
     x, y, _ = box
     draw_box(frame, box, color)
