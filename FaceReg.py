@@ -16,17 +16,10 @@ def load_data():
     X = [cv2.imdecode(np.fromfile(p, np.uint8), cv2.IMREAD_GRAYSCALE).flatten() / 255.0 for p in paths]
     return np.array(X, dtype=np.float32), np.array([os.path.basename(os.path.dirname(p)) for p in paths])
 
-def accuracy(X, y):
-    idx = np.random.default_rng(42).permutation(len(X))
-    n = int(len(X) * 0.2)
-    pred = np.array([knn(X[idx[n:]], y[idx[n:]], X[i], K)[0] for i in idx[:n]])
-    print(f"โหลด {len(X)} รูป {len(set(y))} คน | Accuracy: {np.mean(pred == y[idx[:n]]) * 100:.1f}% (ทดสอบ {n} รูป)")
-
 if __name__ == "__main__":
     X, y = load_data()
     if len(X) == 0:
         raise SystemExit("ไม่พบรูป กรุณารัน FaceTrain.py ก่อน")
-    accuracy(X, y)
     cap, last = cv2.VideoCapture(0, CAMERA), None
     ret, frame = cap.read()
     while ret:
