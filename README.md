@@ -1,81 +1,138 @@
-# 👤 Enterprise Face Recognition System (KNN From Scratch)
+# 👤 Face Recognition System (KNN from Scratch)
 
-A modular, enterprise-grade real-time face recognition system built in Python utilizing custom K-Nearest Neighbors (KNN) classification, dual-window OpenCV camera streams, and dynamic Region of Interest (ROI) preprocessing.
+ระบบรู้จำและตรวจจับใบหน้าแบบเรียลไทม์ (Real-time Face Recognition) พัฒนาด้วยภาษา Python โดยใช้หลักการ **K-Nearest Neighbors (KNN)** แบบเขียนขึ้นเองจากพื้นฐาน (From Scratch) พร้อมระบบประมวลผลภาพ Region of Interest (ROI), ระบบจัดการข้อมูลสมาชิกผ่าน JSON, การวัดผลประเมินโมเดล (Train/Test Split & Accuracy) และการแสดงผล 2 หน้าต่างผ่าน OpenCV
 
 ---
 
-## 🏛️ Architecture & Project Structure
+## 🏗️ โครงสร้างสถาปัตยกรรมของโปรเจกต์ (Project Architecture)
 
 ```
 face_recognition_project/
-├── config.py             # Central system constants & hyperparameters
-├── members.py            # Extensible member roster catalog
-├── requirements.txt      # Project dependencies
-├── README.md             # Documentation & execution guide
-├── .gitignore            # Git exclusion rules
-├── src/
-│   ├── __init__.py       # Package exports
-│   ├── camera.py         # Camera capture lifecycle management
-│   ├── roi.py            # Geometric crop, grayscale & flatten transformations
-│   ├── knn.py            # Custom KNN classifier & distance matrix calculation
-│   └── model.py          # Dataset ingestion & .npz persistence
+├── config.py                 # ค่าคงที่และการตั้งค่าส่วนกลาง (Hyperparameters & Paths)
+├── members.py                # ระบบจัดการและค้นหาข้อมูลสมาชิก (JSON Persistence)
+├── requirements.txt          # รายการ Library ที่ต้องใช้
+├── README.md                 # เอกสารคู่มือโปรเจกต์
+├── collect.py                # [Phase 1] สคริปต์เปิดกล้องบันทึกภาพตัวอย่างใบหน้า
+├── train.py                  # [Phase 2] สคริปต์สกัด Features, วัดผล Accuracy และบันทึกโมเดล
+├── predict.py                # [Phase 3] สคริปต์เปิดกล้องทำนายผลใบหน้าแบบ Real-time
 ├── data/
-│   └── faces/            # Member sample repositories
-├── collect.py            # Phase 1: Real-time face sample collector
-├── train.py              # Phase 2: Feature extraction & KNN model training
-└── predict.py            # Phase 3: Real-time dual-window inference HUD
+│   ├── faces/                # โฟลเดอร์เก็บภาพตัวอย่างใบหน้าแยกตามสมาชิก ({id}_{name}/)
+│   │   └── .pending/         # โฟลเดอร์พักภาพชั่วคราวก่อนบันทึกลงทะเบียน
+│   ├── members.json          # ฐานข้อมูลรายชื่อสมาชิก (ID, ชื่อไทย, ชื่ออังกฤษ)
+│   └── model.npz             # ไฟล์โมเดลที่ผ่านการเทรน (X_train, y_train)
+└── src/
+    ├── camera.py             # จัดการเปิด/ปิดกล้อง และอ่าน Frame / Key event
+    ├── roi.py                # ฟังก์ชันตัดภาพ (Crop), กลับภาพ (Mirror), Grayscale, Resize, Flatten
+    ├── knn.py                # อัลกอริทึม KNN: คำนวณ Euclidean Distance, โหวต Class และ Confidence
+    ├── model.py              # บันทึก/โหลดโมเดล .npz และฟังก์ชันแบ่งข้อมูล Train/Test Split
+    ├── dataset.py            # จัดการ I/O ภาพ, นับลำดับไฟล์ภาพ และโหลดชุดข้อมูล
+    ├── display.py            # วาดกรอบ ROI, ข้อความบน Frame และจัดการหน้าต่างแสดงผล
+    ├── evaluate.py           # ฟังก์ชันประเมินความแม่นยำ (Batch Prediction & Accuracy)
+    └── form.py               # หน้าต่าง GUI Pop-up สำหรับกรอกข้อมูลลงทะเบียนสมาชิก
 ```
 
 ---
 
-## ⚙️ Installation & Setup
+## ⚙️ การติดตั้งและเตรียมสภาพแวดล้อม (Installation & Setup)
 
+### 1. ติดตั้ง Dependencies
 ```bash
-# 1. Clone or navigate to the project directory
-cd face_recognition_project
+# สลับมาที่โฟลเดอร์โปรเจกต์
+cd "face_recognition_project"
 
-# 2. Activate Conda / Virtual Environment
+# เปิดใช้งาน Conda Environment (หากใช้ Conda)
 conda activate knn
 
-# 3. Install required packages
+# ติดตั้งแพ็กเกจที่จำเป็น
 pip install -r requirements.txt
 ```
 
 ---
 
-## 🚀 Execution Workflow
+## 🚀 ขั้นตอนการทำงาน (Workflow)
 
-### Step 1: Member Registration (`members.py`)
-Add new members to the `MEMBERS` list in `members.py`:
-```python
-MEMBERS = [
-    {"id": "6601001", "name": "สมชาย"},
-    {"id": "6601002", "name": "สมหญิง"},
-]
+```mermaid
+graph LR
+    A[1. collect.py<br/>เก็บภาพตัวอย่างใบหน้า] --> B[2. train.py<br/>สกัด Features & บันทึกโมเดล]
+    B --> C[3. predict.py<br/>เปิดกล้องสแกน Real-time]
 ```
 
-### Step 2: Phase 1 - Collect Face Samples (`collect.py`)
+### 📸 ขั้นตอนที่ 1: เก็บตัวอย่างภาพใบหน้า (`collect.py`)
 ```bash
 python collect.py
 ```
-* Select a member from the interactive menu or register a new one.
-* Position face inside the central orange ROI box.
-* Press **`S`** to capture a snapshot (recommended: 20-30 samples per person).
-* Press **`Q`** to finish.
+1. ระบบจะเปิดกล้องขึ้นมา 2 หน้าต่าง:
+   * **Camera (Main Window):** ภาพมุมมองปกติพร้อมกรอบสี่เหลี่ยมสีส้มกึ่งกลางจอ
+   * **ROI Window:** ภาพใบหน้าที่ถูก Crop และแปลงเป็น Grayscale ขนาด $64 \times 64$ pixels
+2. **ปุ่มควบคุม:**
+   * กดปุ่ม **`S`** : บันทึกภาพทีละ 1 รูป (แนะนำให้ถ่ายหลากหลายมุม/ระยะ ประมาณ 100–300 รูป)
+   * กดปุ่ม **`Q`** หรือ **`ESC`** : จบขั้นตอนการถ่ายภาพ
+3. เมื่อถ่ายเสร็จ จะมีหน้าต่าง Pop-up ขึ้นมาให้กรอกข้อมูล:
+   * **รหัสนักศึกษา / รหัสสมาชิก (ID)** (เช่น `6752301255`)
+   * **ชื่อภาษาไทย** (เช่น `พงษ์ดนัย สมภาร`)
+   * **ชื่อภาษาอังกฤษ** (เช่น `Phongdanai Somphan`)
+4. ระบบจะย้ายภาพเข้าโฟลเดอร์ `data/faces/{id}_{name}/` และบันทึกลง `data/members.json` อัตโนมัติ
 
-### Step 3: Phase 2 - Train KNN Model (`train.py`)
+---
+
+### 🧠 ขั้นตอนที่ 2: เทรนโมเดล KNN และประเมินผล (`train.py`)
 ```bash
 python train.py
 ```
-* Loads all face images from `data/faces/`.
-* Converts images into 1D feature vectors ($64 \times 64 = 4,096$ dimensions).
-* Saves the trained dataset to `data/model.npz`.
+* **กระบวนการทำงาน:**
+  1. โหลดภาพทั้งหมดใน `data/faces/` แปลงเป็น 1D Vector ($64 \times 64 = 4,096$ Features) และ Normalized ค่าพิกเซลเป็น $[0.0, 1.0]$
+  2. ทำ **Train/Test Split (80/20)** ตามค่า `TEST_RATIO`
+  3. คำนวณค่า **Accuracy (%)** บนชุดทดสอบ และประเมินค่า `DIST_THRESH` ที่เหมาะสม
+  4. บันทึกผลลัพธ์ลงใน `data/model.npz`
 
-### Step 4: Phase 3 - Real-Time Recognition (`predict.py`)
+**ตัวอย่างผลลัพธ์จากการรัน:**
+```text
+รูปทั้งหมด: 1049 | Features: 4096 | คน: 3
+  6752300194 ธีรภัทร ทองตำลึง: 410 รูป
+  6752301255 พงษ์ดนัย สมภาร: 341 รูป
+  6752301271 ถวายเกียรติ ปู่วัง: 298 รูป
+Accuracy: 95.2% (ทดสอบ 209 รูป)
+แนะนำ DIST_THRESH ≈ 16.39
+บันทึกโมเดลที่ data/model.npz
+```
+
+---
+
+### 🎥 ขั้นตอนที่ 3: เปิดกล้องตรวจจับใบหน้าแบบ Real-time (`predict.py`)
 ```bash
 python predict.py
 ```
-* Opens dual-window stream:
-  * **Main Camera:** Live stream with color-coded bounding box (Green for match, Red for unknown) + Thai Unicode name & ID overlay.
-  * **ROI Window:** $64 \times 64$ grayscale face preview.
-* Press **`Q`** to exit.
+* **กระบวนการทำนายผล:**
+  1. กล้องจะจับภาพใบหน้าในกรอบสี่เหลี่ยม แปลงเป็น Feature Vector
+  2. คำนวณระยะห่าง **Euclidean Distance** เทียบกับจุดข้อมูลทั้งหมดในโมเดล และค้นหา **$K=3$ เพื่อนบ้านที่ใกล้ที่สุด**
+  3. **เงื่อนไขการระบุตัวตน:**
+     $$\text{Matched} \iff (\text{Confidence} \ge 0.60) \land (\text{Mean Distance} \le 12.0)$$
+     * **ผ่านเกณฑ์:** กรอบสีส้ม/เขียว พร้อมแสดงชื่อและรหัสสมาชิกบนหน้าจอและ Terminal
+     * **ไม่ผ่านเกณฑ์:** แสดงสถานะ `Unknown`
+4. กด **`Q`** หรือ **`ESC`** เพื่อปิดโปรแกรม
+
+---
+
+## 🎛️ พารามิเตอร์และการตั้งค่า (`config.py`)
+
+| พารามิเตอร์ | ค่าเริ่มต้น | คำอธิบาย |
+|:---|:---:|:---|
+| `ROI_RATIO` | `0.45` | สัดส่วนขนาดกรอบ ROI เทียบกับขนาดหน้าจอวิดีโอ |
+| `ROI_DISPLAY` | `200` | ขนาดหน้าต่างพรีวิว ROI ที่ขยายแสดงผล (Pixels) |
+| `IMG_SIZE` | `64` | ขนาดภาพใบหน้ามาตรฐาน ($64 \times 64 = 4,096$ มิติ) |
+| `K_NEIGHBORS` | `3` | จำนวนเพื่อนบ้านที่ใกล้ที่สุดสำหรับ KNN Voting |
+| `CONFIDENCE_THRESH` | `0.6` | เกณฑ์สัดส่วนเสียงโหวตขั้นต่ำ (60%) |
+| `DIST_THRESH` | `12.0` | เกณฑ์ระยะห่าง Euclidean สูงสุดที่ยอมรับว่าเป็นคนเดียวกัน |
+| `TEST_RATIO` | `0.2` | สัดส่วนข้อมูลชุดทดสอบสำหรับวัดผล Accuracy (20%) |
+| `CAMERA_INDEX` | `0` | หมายเลข Index ของอุปกรณ์กล้อง |
+
+---
+
+## 📊 สถิติข้อมูลสมาชิกในระบบปัจจุบัน
+
+| รหัสสมาชิก (ID) | ชื่อ - นามสกุล | Name (EN) | จำนวนภาพตัวอย่าง |
+|:---:|:---|:---|:---:|
+| `6752300194` | ธีรภัทร ทองตำลึง | Teerapat Thongtumlueng | 410 รูป |
+| `6752301255` | พงษ์ดนัย สมภาร | Phongdanai Somphan | 341 รูป |
+| `6752301271` | ถวายเกียรติ ปู่วัง | Tawaikiar Phoowang | 298 รูป |
+| **รวมทั้งหมด** | **3 คน** | - | **1,049 รูป** |
