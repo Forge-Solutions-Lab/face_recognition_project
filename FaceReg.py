@@ -26,8 +26,7 @@ print(y)
 while True:
     frame, face = get_face()
     z = face.flatten().astype(float)
-    d = np.sum((X - z) ** 2, axis=1).min()
-    label = knn(X, y, z) if d < 1.5e8 else ''
+    label = knn(X, y, z)
     cv2.putText(frame, label, (720, 280), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
     cv2.imshow('frame', frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
